@@ -1,64 +1,41 @@
-import paramiko
 import socket
 import threading
-import sys
+import subprocess
 
 # Настройки сервера
 HOST = '0.0.0.0'  # Слушаем на всех интерфейсах
-PORT = 2222        # Порт для подключения
-
-# Класс для обработки SSH-соединений
-class Server(paramiko.ServerInterface):
-    def __init__(self):
-        self.event = threading.Event()
-
-    def check_channel_request(self, kind, chanid):
-        if kind == 'session':
-            return paramiko.OPEN_SUCCEEDED
-        return paramiko.OPEN_FAILED
-
-    def check_auth_password(self, username, password):
-        if (username == 'user') and (password == 'pass'):
-            return paramiko.AUTH_SUCCESSFUL
-        return paramiko.AUTH_FAILED
+PORT = 23          # Порт для Telnet
 
 # Функция для обработки клиента
-def handle_client(client):
-    transport = paramiko.Transport(client)
-    transport.add_server_key(paramiko.RSAKey.generate(2048))
-    server = Server()
+def handle_client(client_socket):
+    print("Клиент подключен")
+    client_socket.send(b"Добро пожаловать в Telnet сервер!\n")
+    
+    while True:
+        # Получаем команду от клиента
+        command = client_socket.recv(1024).decode('utf-8').strip()
+        if command.lower() == 'exit':
+            break
 
-    try:
-        transport.start_server(server=server)
-        channel = transport.accept(20)
+        # Выполняем команду и отправляем результат обратно
+        try:
+            # Используем subprocess для выполнения команды
+            output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
+            client_socket.send(output + b"\n")
+        except subprocess.CalledProcessError as e:
+            client_socket.send(f"Ошибка: {e.output.decode('utf-8')}\n".encode('utf-8'))
 
-        if channel is None:
-            print("Не удалось установить канал")
-            return
-
-        while True:
-            # Получаем команду от клиента
-            command = channel.recv(1024).decode('utf-8').strip()
-            if command.lower() == 'exit':
-                break
-
-            # Выполняем команду и отправляем результат обратно
-            output = f"Выполнено: {command}\n"  # Здесь можно добавить выполнение команды
-            channel.send(output.encode('utf-8'))
-
-    except Exception as e:
-        print("Ошибка:", e)
-    finally:
-        transport.close()
+    client_socket.close()
+    print("Клиент отключен")
 
 # Запуск сервера
 if __name__ == "__main__":
-    server_socket = socket.socket()
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((HOST, PORT))
     server_socket.listen(5)
-    print(f"Сервер запущен на {HOST}:{PORT}")
+    print(f"Telnet сервер запущен на {HOST}:{PORT}")
 
     while True:
-        client, addr = server_socket.accept()
+        client_socket, addr = server_socket.accept()
         print(f"Подключен клиент: {addr}")
-        threading.Thread(target=handle_client, args=(client,)).start()
+        threading.Thread(target=handle_client, args=(client_socket,)).start()
