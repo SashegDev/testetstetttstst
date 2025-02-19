@@ -1,1 +1,64 @@
-localhost
+import paramiko
+import socket
+import threading
+import sys
+
+# Настройки сервера
+HOST = '0.0.0.0'  # Слушаем на всех интерфейсах
+PORT = 2222        # Порт для подключения
+
+# Класс для обработки SSH-соединений
+class Server(paramiko.ServerInterface):
+    def __init__(self):
+        self.event = threading.Event()
+
+    def check_channel_request(self, kind, chanid):
+        if kind == 'session':
+            return paramiko.OPEN_SUCCEEDED
+        return paramiko.OPEN_FAILED
+
+    def check_auth_password(self, username, password):
+        if (username == 'user') and (password == 'pass'):
+            return paramiko.AUTH_SUCCESSFUL
+        return paramiko.AUTH_FAILED
+
+# Функция для обработки клиента
+def handle_client(client):
+    transport = paramiko.Transport(client)
+    transport.add_server_key(paramiko.RSAKey.generate(2048))
+    server = Server()
+
+    try:
+        transport.start_server(server=server)
+        channel = transport.accept(20)
+
+        if channel is None:
+            print("Не удалось установить канал")
+            return
+
+        while True:
+            # Получаем команду от клиента
+            command = channel.recv(1024).decode('utf-8').strip()
+            if command.lower() == 'exit':
+                break
+
+            # Выполняем команду и отправляем результат обратно
+            output = f"Выполнено: {command}\n"  # Здесь можно добавить выполнение команды
+            channel.send(output.encode('utf-8'))
+
+    except Exception as e:
+        print("Ошибка:", e)
+    finally:
+        transport.close()
+
+# Запуск сервера
+if __name__ == "__main__":
+    server_socket = socket.socket()
+    server_socket.bind((HOST, PORT))
+    server_socket.listen(5)
+    print(f"Сервер запущен на {HOST}:{PORT}")
+
+    while True:
+        client, addr = server_socket.accept()
+        print(f"Подключен клиент: {addr}")
+        threading.Thread(target=handle_client, args=(client,)).start()
