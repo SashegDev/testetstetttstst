@@ -2,44 +2,44 @@ import socket
 import threading
 import subprocess
 
-# Настройки сервера
-HOST = '0.0.0.0'  # Слушаем на всех интерфейсах
-PORT = 23          # Порт для Telnet
+# Server settings
+HOST = '0.0.0.0'  # Listen on all interfaces
+PORT = 23          # Port for Telnet
 
-# Функция для обработки клиента
+# Function to handle client connections
 def handle_client(client_socket):
-    print("Клиент подключен")
-    client_socket.send(b"Добро пожаловать в Telnet сервер!\n")
+    print("Client connected")
+    client_socket.send(b"Welcome to the Telnet server!\n")
     
     while True:
-        # Получаем команду от клиента
+        # Receive command from client
         command = client_socket.recv(1024).decode('latin-1').strip()
         if command.lower() == 'exit':
             break
 
-        if not command:  # Проверка на пустую команду
-            client_socket.send(b"Ошибка: Пустая команда\n")
+        if not command:  # Check for empty command
+            client_socket.send(b"Error: Empty command\n")
             continue
 
-        # Выполняем команду и отправляем результат обратно
+        # Execute the command and send the result back
         try:
-            # Используем subprocess для выполнения команды
+            # Use subprocess to execute the command
             output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
-            client_socket.send(output.decode('latin-1') + "\n")
+            client_socket.send(output.decode('latin-1') + b"\n")
         except subprocess.CalledProcessError as e:
-            client_socket.send(f"Ошибка: Команда '{command}' завершилась с кодом {e.returncode}\n".encode('latin-1'))
+            client_socket.send(f"Error: Command '{command}' exited with code {e.returncode}\n".encode('latin-1'))
 
     client_socket.close()
-    print("Клиент отключен")
+    print("Client disconnected")
 
-# Запуск сервера
+# Start the server
 if __name__ == "__main__":
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((HOST, PORT))
     server_socket.listen(5)
-    print(f"Telnet сервер запущен на {HOST}:{PORT}")
+    print(f"Telnet server running on {HOST}:{PORT}")
 
     while True:
         client_socket, addr = server_socket.accept()
-        print(f"Подключен клиент: {addr}")
+        print(f"Connected client: {addr}")
         threading.Thread(target=handle_client, args=(client_socket,)).start()
